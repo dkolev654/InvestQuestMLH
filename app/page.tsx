@@ -1,216 +1,144 @@
 "use client"
 
-import { useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Progress } from "@/components/ui/progress"
+import { useState } from "react"
+import { TradingInterface } from "@/components/trading-interface"
+import { Portfolio } from "@/components/portfolio"
+import { QuestsPanel } from "@/components/quests-panel"
+import { BadgesPanel } from "@/components/badges-panel"
+import { EducationCenter } from "@/components/education-center"
+import { AIChatAssistant } from "@/components/ai-chat-assistant"
+import { DuckCharacter } from "@/components/duck-character"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { TrendingUp, Trophy, BookOpen, DollarSign, Target, Star } from "lucide-react"
-import TradingInterface from "@/components/trading-interface"
-import Portfolio from "@/components/portfolio"
-import QuestsPanel from "@/components/quests-panel"
-import BadgesPanel from "@/components/badges-panel"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { useGameStore } from "@/lib/game-store"
-import EducationCenter from "@/components/education-center"
-import AIChatAssistant from "@/components/ai-chat-assistant"
+import { TrendingUp, Trophy, BookOpen, MessageCircle, User, Coins } from "lucide-react"
 
-export default function InvestQuest() {
-  const { user, initializeUser } = useGameStore()
-
-  useEffect(() => {
-    initializeUser()
-  }, [initializeUser])
-
-  if (!user) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>
-  }
-
-  const getXPProgress = () => {
-    const currentLevelXP = user.level * 1000
-    const nextLevelXP = (user.level + 1) * 1000
-    return ((user.xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100
-  }
+export default function InvestQuestApp() {
+  const { user } = useGameStore()
+  const [activeTab, setActiveTab] = useState("trading")
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 p-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                InvestQuest
-              </h1>
-              <p className="text-gray-600 mt-1">Learn investing through gamified trading</p>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      {/* Header */}
+      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <DuckCharacter size="sm" />
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">InvestQuest</h1>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Learn investing through gaming</p>
+                </div>
+              </div>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-green-600">${user.balance.toLocaleString()}</div>
-              <div className="text-sm text-gray-500">Available Balance</div>
+
+            <div className="flex items-center space-x-4">
+              <Card className="px-4 py-2">
+                <div className="flex items-center space-x-2">
+                  <User className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium">{user?.name || "Investor"}</span>
+                </div>
+              </Card>
+
+              <Card className="px-4 py-2">
+                <div className="flex items-center space-x-2">
+                  <Trophy className="h-4 w-4 text-yellow-600" />
+                  <span className="font-medium">Level {user?.level || 1}</span>
+                </div>
+              </Card>
+
+              <Card className="px-4 py-2">
+                <div className="flex items-center space-x-2">
+                  <Coins className="h-4 w-4 text-green-600" />
+                  <span className="font-medium">${(user?.balance || 10000).toLocaleString()}</span>
+                </div>
+              </Card>
             </div>
           </div>
-
-          {/* User Stats */}
-          <Card className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                    <Star className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold">Welcome back, Trader!</h2>
-                    <p className="opacity-90">
-                      Level {user.level} • {user.xp} XP
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm opacity-90 mb-2">Progress to Level {user.level + 1}</div>
-                  <Progress value={getXPProgress()} className="w-32 bg-white/20" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
+      </header>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <DollarSign className="w-5 h-5 text-green-500" />
-                <div>
-                  <div className="text-sm text-gray-500">Portfolio Value</div>
-                  <div className="font-bold">${user.portfolioValue.toLocaleString()}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="w-5 h-5 text-blue-500" />
-                <div>
-                  <div className="text-sm text-gray-500">Total P&L</div>
-                  <div className={`font-bold ${user.totalPnL >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {user.totalPnL >= 0 ? "+" : ""}${user.totalPnL.toLocaleString()}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Trophy className="w-5 h-5 text-yellow-500" />
-                <div>
-                  <div className="text-sm text-gray-500">Badges Earned</div>
-                  <div className="font-bold">{user.badges.length}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-2">
-                <Target className="w-5 h-5 text-purple-500" />
-                <div>
-                  <div className="text-sm text-gray-500">Quests Completed</div>
-                  <div className="font-bold">{user.completedQuests.length}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <Tabs defaultValue="dashboard" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="trade">Trade</TabsTrigger>
-            <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
-            <TabsTrigger value="learn">Learn</TabsTrigger>
-            <TabsTrigger value="education">Education</TabsTrigger>
-            <TabsTrigger value="badges">Badges</TabsTrigger>
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:grid-cols-5">
+            <TabsTrigger value="trading" className="flex items-center space-x-2">
+              <TrendingUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Trading</span>
+            </TabsTrigger>
+            <TabsTrigger value="portfolio" className="flex items-center space-x-2">
+              <User className="h-4 w-4" />
+              <span className="hidden sm:inline">Portfolio</span>
+            </TabsTrigger>
+            <TabsTrigger value="quests" className="flex items-center space-x-2">
+              <Trophy className="h-4 w-4" />
+              <span className="hidden sm:inline">Quests</span>
+            </TabsTrigger>
+            <TabsTrigger value="education" className="flex items-center space-x-2">
+              <BookOpen className="h-4 w-4" />
+              <span className="hidden sm:inline">Learn</span>
+            </TabsTrigger>
+            <TabsTrigger value="chat" className="flex items-center space-x-2">
+              <MessageCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">AI Chat</span>
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <BookOpen className="w-5 h-5" />
-                    <span>Daily Tip</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <p className="text-sm">
-                      💡 <strong>Did you know?</strong> Diversification means spreading your investments across
-                      different companies and sectors to reduce risk. Don't put all your eggs in one basket!
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button className="w-full justify-start bg-transparent" variant="outline">
-                    <TrendingUp className="w-4 h-4 mr-2" />
-                    View Market Trends
-                  </Button>
-                  <Button className="w-full justify-start bg-transparent" variant="outline">
-                    <Target className="w-4 h-4 mr-2" />
-                    Start New Quest
-                  </Button>
-                  <Button className="w-full justify-start bg-transparent" variant="outline">
-                    <Trophy className="w-4 h-4 mr-2" />
-                    Check Leaderboard
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <Portfolio />
+          <TabsContent value="trading" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <div className="lg:col-span-3">
+                <TradingInterface />
               </div>
-              <div>
+              <div className="space-y-6">
+                <BadgesPanel />
                 <QuestsPanel />
               </div>
             </div>
           </TabsContent>
 
-          <TabsContent value="trade">
-            <TradingInterface />
-          </TabsContent>
-
-          <TabsContent value="portfolio">
+          <TabsContent value="portfolio" className="space-y-6">
             <Portfolio />
           </TabsContent>
 
-          <TabsContent value="learn">
-            <QuestsPanel />
+          <TabsContent value="quests" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <QuestsPanel />
+              </div>
+              <div>
+                <BadgesPanel />
+              </div>
+            </div>
           </TabsContent>
 
-          <TabsContent value="badges">
-            <BadgesPanel />
-          </TabsContent>
-
-          <TabsContent value="education">
+          <TabsContent value="education" className="space-y-6">
             <EducationCenter />
           </TabsContent>
-        </Tabs>
 
-        {/* AI Chat Assistant */}
-        <AIChatAssistant />
-      </div>
+          <TabsContent value="chat" className="space-y-6">
+            <AIChatAssistant />
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-t border-gray-200 dark:border-gray-700 mt-12">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <DuckCharacter size="xs" />
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                © 2024 InvestQuest. Learn investing through gamified trading simulation.
+              </p>
+            </div>
+            <Badge variant="secondary" className="text-xs">
+              Powered by Alpha Vantage API
+            </Badge>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

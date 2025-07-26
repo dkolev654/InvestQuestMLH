@@ -1,246 +1,367 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts"
-import { TrendingUp, TrendingDown, PieChartIcon, BarChart3 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useGameStore } from "@/lib/game-store"
+import { TrendingUp, TrendingDown, DollarSign, PieChart, BarChart3, RefreshCw, FileSpreadsheet } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D"]
+interface PortfolioStock {
+  symbol: string
+  quantity: number
+  avgPrice: number
+  currentPrice: number
+  totalValue: number
+  gainLoss: number
+  gainLossPercent: number
+}
 
-export default function Portfolio() {
-  const { user, stocks } = useGameStore()
+export function Portfolio() {
+  const { user } = useGameStore()
+  const [portfolioStocks, setPortfolioStocks] = useState<PortfolioStock[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
 
-  if (!user) return null
+  const fetchPortfolioData = async () => {
+    if (!user?.portfolio.length) return
 
-  const portfolioData = user.holdings.map((holding, index) => {
-    const stock = stocks.find((s) => s.symbol === holding.symbol)
-    const value = holding.shares * holding.currentPrice
-    const pnl = (holding.currentPrice - holding.avgPrice) * holding.shares
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/stock-data")
+      const data = await response.json()
 
-    return {
-      symbol: holding.symbol,
-      name: stock?.name || holding.symbol,
-      shares: holding.shares,
-      avgPrice: holding.avgPrice,
-      currentPrice: holding.currentPrice,
-      value,
-      pnl,
-      pnlPercent: ((holding.currentPrice - holding.avgPrice) / holding.avgPrice) * 100,
-      color: COLORS[index % COLORS.length],
-      sector: stock?.sector || "Unknown",
+      if (data.stocks) {
+        const updatedPortfolio = user.portfolio.map((holding) => {
+          const currentStock = data.stocks.find((s: any) => s.symbol === holding.symbol)
+          const currentPrice = currentStock?.price || holding.avgPrice
+          const totalValue = currentPrice * holding.quantity
+          const gainLoss = totalValue - holding.avgPrice * holding.quantity
+          const gainLossPercent = ((currentPrice - holding.avgPrice) / holding.avgPrice) * 100
+
+          return {
+            symbol: holding.symbol,
+            quantity: holding.quantity,
+            avgPrice: holding.avgPrice,
+            currentPrice,
+            totalValue,
+            gainLoss,
+            gainLossPercent,
+          }
+        })
+
+        setPortfolioStocks(updatedPortfolio)
+        setLastUpdate(new Date())
+      }
+    } catch (error) {
+      console.error("Error fetching portfolio data:", error)
+    } finally {
+      setIsLoading(false)
     }
-  })
+  }
 
-  const sectorData = portfolioData.reduce(
-    (acc, holding) => {
-      const existing = acc.find((item) => item.sector === holding.sector)
-      if (existing) {
-        existing.value += holding.value
+  const handleExportToSheets = async () => {
+    setIsExporting(true)
+    try {
+      const response = await fetch("/api/export-portfolio", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user: user,
+          portfolio: user?.portfolio || [],
+          portfolioStocks: portfolioStocks,
+          balance: user?.balance || 0,
+          totalPortfolioValue,
+          totalGainLoss,
+          totalGainLossPercent,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to export portfolio")
+      }
+
+      const data = await response.json()
+
+      if (data.sheetUrl) {
+        window.open(data.sheetUrl, "_blank")
+        toast({
+          title: "Success!",
+          description: "Portfolio exported to Google Sheets!",
+        })
       } else {
-        acc.push({
-          sector: holding.sector,
-          value: holding.value,
-          color: COLORS[acc.length % COLORS.length],
+        // Fallback: download as CSV
+        const csvContent = data.csvContent
+        const blob = new Blob([csvContent], { type: "text/csv" })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `portfolio-summary-${new Date().toISOString().split("T")[0]}.csv`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(url)
+        toast({
+          title: "Success!",
+          description: "Portfolio exported as CSV!",
         })
       }
-      return acc
-    },
-    [] as Array<{ sector: string; value: number; color: string }>,
-  )
+    } catch (error) {
+      console.error("Export error:", error)
+      toast({
+        title: "Error",
+        description: "Failed to export portfolio. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
-  const totalValue = user.balance + user.portfolioValue
+  useEffect(() => {
+    fetchPortfolioData()
+
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(fetchPortfolioData, 60000)
+    return () => clearInterval(interval)
+  }, [user?.portfolio])
+
+  const totalPortfolioValue = portfolioStocks.reduce((sum, stock) => sum + stock.totalValue, 0)
+  const totalGainLoss = portfolioStocks.reduce((sum, stock) => sum + stock.gainLoss, 0)
+  const totalGainLossPercent =
+    totalPortfolioValue > 0 ? (totalGainLoss / (totalPortfolioValue - totalGainLoss)) * 100 : 0
+
+  if (!user) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <p className="text-gray-600">Please log in to view your portfolio.</p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      {/* Portfolio Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Portfolio Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold">${totalValue.toLocaleString()}</div>
-              <div className="text-sm text-gray-500">Total Portfolio Value</div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className={`text-2xl font-bold ${user.totalPnL >= 0 ? "text-green-600" : "text-red-600"}`}>
-                {user.totalPnL >= 0 ? "+" : ""}${user.totalPnL.toLocaleString()}
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <DollarSign className="h-5 w-5 text-green-600" />
+              <div>
+                <p className="text-sm text-gray-600">Cash Balance</p>
+                <p className="text-2xl font-bold tabular-nums">${(user.balance || 0).toFixed(2)}</p>
               </div>
-              <div className="text-sm text-gray-500">Total P&L</div>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold">{user.holdings.length}</div>
-              <div className="text-sm text-gray-500">Holdings</div>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <PieChart className="h-5 w-5 text-blue-600" />
+              <div>
+                <p className="text-sm text-gray-600">Portfolio Value</p>
+                <p className="text-2xl font-bold tabular-nums">${totalPortfolioValue.toFixed(2)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              {totalGainLoss >= 0 ? (
+                <TrendingUp className="h-5 w-5 text-green-600" />
+              ) : (
+                <TrendingDown className="h-5 w-5 text-red-600" />
+              )}
+              <div>
+                <p className="text-sm text-gray-600">Total P&L</p>
+                <p
+                  className={`text-2xl font-bold tabular-nums ${
+                    totalGainLoss >= 0 ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {totalGainLoss >= 0 ? "+" : ""}${totalGainLoss.toFixed(2)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="h-5 w-5 text-purple-600" />
+              <div>
+                <p className="text-sm text-gray-600">Total Return</p>
+                <p
+                  className={`text-2xl font-bold tabular-nums ${
+                    totalGainLossPercent >= 0 ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {totalGainLossPercent >= 0 ? "+" : ""}
+                  {totalGainLossPercent.toFixed(2)}%
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {user.holdings.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <div className="text-gray-500">
-              <PieChartIcon className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-semibold mb-2">No Holdings Yet</h3>
-              <p>Start trading to build your portfolio!</p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Portfolio Allocation Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <PieChartIcon className="w-5 h-5" />
-                <span>Portfolio Allocation</span>
-              </CardTitle>
-              <CardDescription>Distribution by holdings</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={portfolioData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={({ symbol, value }) => `${symbol}: $${value.toLocaleString()}`}
-                  >
-                    {portfolioData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, "Value"]} />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Sector Diversification */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <BarChart3 className="w-5 h-5" />
-                <span>Sector Diversification</span>
-              </CardTitle>
-              <CardDescription>Portfolio distribution by sector</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={sectorData}>
-                  <XAxis dataKey="sector" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => [`$${value.toLocaleString()}`, "Value"]} />
-                  <Bar dataKey="value" fill="#8884d8">
-                    {sectorData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Holdings Table */}
-      {user.holdings.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Holdings</CardTitle>
-            <CardDescription>Detailed view of your stock positions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2">Stock</th>
-                    <th className="text-right p-2">Shares</th>
-                    <th className="text-right p-2">Avg Price</th>
-                    <th className="text-right p-2">Current Price</th>
-                    <th className="text-right p-2">Value</th>
-                    <th className="text-right p-2">P&L</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {portfolioData.map((holding) => (
-                    <tr key={holding.symbol} className="border-b hover:bg-gray-50">
-                      <td className="p-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-semibold">{holding.symbol}</span>
-                          <Badge variant="outline" className="text-xs">
-                            {holding.sector}
-                          </Badge>
-                        </div>
-                        <div className="text-sm text-gray-500">{holding.name}</div>
-                      </td>
-                      <td className="text-right p-2">{holding.shares}</td>
-                      <td className="text-right p-2">${holding.avgPrice.toFixed(2)}</td>
-                      <td className="text-right p-2">${holding.currentPrice.toFixed(2)}</td>
-                      <td className="text-right p-2 font-semibold">${holding.value.toLocaleString()}</td>
-                      <td
-                        className={`text-right p-2 font-semibold ${holding.pnl >= 0 ? "text-green-600" : "text-red-600"}`}
-                      >
-                        <div className="flex items-center justify-end space-x-1">
-                          {holding.pnl >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                          <span>
-                            {holding.pnl >= 0 ? "+" : ""}${holding.pnl.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="text-xs">
-                          ({holding.pnlPercent >= 0 ? "+" : ""}
-                          {holding.pnlPercent.toFixed(1)}%)
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Portfolio Insights */}
+      {/* Holdings */}
       <Card>
         <CardHeader>
-          <CardTitle>Portfolio Insights</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-semibold mb-2">💡 Diversification Tip</h4>
-              <p className="text-sm">
-                {sectorData.length < 3
-                  ? "Consider diversifying across more sectors to reduce risk!"
-                  : "Great job diversifying across multiple sectors! 🎉"}
-              </p>
-            </div>
-
-            <div className="bg-green-50 p-4 rounded-lg">
-              <h4 className="font-semibold mb-2">📊 Performance</h4>
-              <p className="text-sm">
-                {user.totalPnL >= 0
-                  ? `Your portfolio is up ${((user.totalPnL / (totalValue - user.totalPnL)) * 100).toFixed(1)}%! Keep it up! 🚀`
-                  : "Don't worry about short-term losses. Stay focused on long-term growth! 💪"}
-              </p>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center space-x-2">
+              <PieChart className="h-5 w-5" />
+              <span>Your Holdings</span>
+            </CardTitle>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportToSheets}
+                disabled={isExporting || portfolioStocks.length === 0}
+                className="flex items-center space-x-2 bg-transparent"
+              >
+                {isExporting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                <span className="hidden sm:inline">{isExporting ? "Exporting..." : "Export to Sheets"}</span>
+              </Button>
+              <Button variant="outline" size="sm" onClick={fetchPortfolioData} disabled={isLoading}>
+                <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+              <Badge variant="secondary" className="text-xs">
+                Updated: {lastUpdate.toLocaleTimeString()}
+              </Badge>
             </div>
           </div>
+        </CardHeader>
+        <CardContent>
+          {portfolioStocks.length === 0 ? (
+            <div className="text-center py-8">
+              <PieChart className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">No Holdings Yet</h3>
+              <p className="text-gray-600 dark:text-gray-400">Start trading to build your portfolio</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {portfolioStocks.map((stock) => (
+                <div
+                  key={stock.symbol}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">{stock.symbol}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {stock.quantity} shares @ ${stock.avgPrice.toFixed(2)} avg
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right space-y-1">
+                    <div className="font-bold text-lg tabular-nums">${stock.totalValue.toFixed(2)}</div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400 tabular-nums">
+                      ${stock.currentPrice.toFixed(2)} current
+                    </div>
+                  </div>
+
+                  <div className="text-right ml-6">
+                    <div
+                      className={`font-semibold tabular-nums ${
+                        stock.gainLoss >= 0 ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {stock.gainLoss >= 0 ? "+" : ""}${stock.gainLoss.toFixed(2)}
+                    </div>
+                    <div
+                      className={`text-sm tabular-nums ${
+                        stock.gainLossPercent >= 0 ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {stock.gainLossPercent >= 0 ? "+" : ""}
+                      {stock.gainLossPercent.toFixed(2)}%
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Performance Summary */}
+      {portfolioStocks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Performance Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Best Performer</p>
+                {portfolioStocks.length > 0 && (
+                  <>
+                    <p className="font-semibold">
+                      {
+                        portfolioStocks.reduce((best, stock) =>
+                          stock.gainLossPercent > best.gainLossPercent ? stock : best,
+                        ).symbol
+                      }
+                    </p>
+                    <p className="text-sm text-green-600">
+                      +
+                      {portfolioStocks
+                        .reduce((best, stock) => (stock.gainLossPercent > best.gainLossPercent ? stock : best))
+                        .gainLossPercent.toFixed(2)}
+                      %
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Worst Performer</p>
+                {portfolioStocks.length > 0 && (
+                  <>
+                    <p className="font-semibold">
+                      {
+                        portfolioStocks.reduce((worst, stock) =>
+                          stock.gainLossPercent < worst.gainLossPercent ? stock : worst,
+                        ).symbol
+                      }
+                    </p>
+                    <p className="text-sm text-red-600">
+                      {portfolioStocks
+                        .reduce((worst, stock) => (stock.gainLossPercent < worst.gainLossPercent ? stock : worst))
+                        .gainLossPercent.toFixed(2)}
+                      %
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Diversification</p>
+                <p className="font-semibold">{portfolioStocks.length} stocks</p>
+                <p className="text-sm text-gray-600">
+                  Avg: ${(totalPortfolioValue / portfolioStocks.length).toFixed(0)} per stock
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

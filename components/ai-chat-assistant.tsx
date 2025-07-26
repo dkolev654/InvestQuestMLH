@@ -1,13 +1,16 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import type React from "react"
+
+import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { MessageCircle, Send, Minimize2, Maximize2, Bot, User, Loader2, Sparkles, X } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { useGameStore } from "@/lib/game-store"
+import { DuckCharacter } from "./duck-character"
+import { Send, MessageCircle, Loader2 } from "lucide-react"
 
 interface Message {
   id: string
@@ -16,54 +19,32 @@ interface Message {
   timestamp: Date
 }
 
-const SUGGESTED_QUESTIONS = [
-  "What's the difference between stocks and bonds?",
-  "How do I know if a stock is overvalued?",
-  "What is dollar-cost averaging?",
-  "Should I invest in individual stocks or ETFs?",
-  "How much should I invest as a beginner?",
-  "What does P/E ratio mean?",
-  "How do dividends work?",
-  "What's the best strategy for long-term investing?",
-]
-
-export default function AIChatAssistant() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [isMinimized, setIsMinimized] = useState(false)
+export function AIChatAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: "welcome",
+      id: "1",
       role: "assistant",
       content:
-        "Hi there! 👋 I'm your AI investing mentor. I'm here to help you learn about stocks, trading, and building wealth. What would you like to know?",
+        "Hello! I'm your AI investment advisor. I can help you understand stocks, analyze your portfolio, answer investment questions, and provide market insights. What would you like to know?",
       timestamp: new Date(),
     },
   ])
-  const [inputMessage, setInputMessage] = useState("")
+  const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { user, addXP } = useGameStore()
+  const { user } = useGameStore()
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const sendMessage = async (message: string) => {
-    if (!message.trim() || isLoading) return
+  const handleSendMessage = async () => {
+    if (!input.trim() || isLoading) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: message,
+      content: input.trim(),
       timestamp: new Date(),
     }
 
     setMessages((prev) => [...prev, userMessage])
-    setInputMessage("")
+    setInput("")
     setIsLoading(true)
 
     try {
@@ -73,12 +54,13 @@ export default function AIChatAssistant() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          message,
-          userContext: {
+          message: input.trim(),
+          user: user,
+          context: {
+            portfolio: user?.portfolio || [],
+            balance: user?.balance || 0,
             level: user?.level || 1,
             xp: user?.xp || 0,
-            portfolioValue: user?.portfolioValue || 0,
-            holdings: user?.holdings || [],
           },
         }),
       })
@@ -92,20 +74,17 @@ export default function AIChatAssistant() {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: data.response,
+        content: data.message || "I'm sorry, I couldn't process your request right now. Please try again.",
         timestamp: new Date(),
       }
 
       setMessages((prev) => [...prev, assistantMessage])
-
-      // Award XP for asking questions
-      addXP(10)
     } catch (error) {
       console.error("Chat error:", error)
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: "Sorry, I'm having trouble connecting right now. Please try again in a moment! 🤖",
+        content: "I'm experiencing some technical difficulties. Please try again in a moment.",
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, errorMessage])
@@ -114,162 +93,165 @@ export default function AIChatAssistant() {
     }
   }
 
-  const handleSuggestedQuestion = (question: string) => {
-    sendMessage(question)
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
   }
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  }
-
-  if (!isOpen) {
-    return (
-      <div className="fixed bottom-6 right-6 z-50">
-        <Button
-          onClick={() => setIsOpen(true)}
-          className="rounded-full w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg"
-        >
-          <MessageCircle className="w-6 h-6" />
-        </Button>
-        <div className="absolute -top-2 -right-2">
-          <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
-        </div>
-      </div>
-    )
-  }
+  const suggestedQuestions = [
+    "What stocks should I consider for my portfolio?",
+    "How do I analyze a company's financial health?",
+    "What's the difference between growth and value investing?",
+    "How much should I diversify my portfolio?",
+    "When should I sell a stock?",
+    "What are the risks of day trading?",
+  ]
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
-      <Card className={`w-96 shadow-2xl transition-all duration-300 ${isMinimized ? "h-16" : "h-[600px]"}`}>
-        <CardHeader className="p-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-t-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                <Bot className="w-5 h-5" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">AI Mentor</CardTitle>
-                <div className="flex items-center space-x-1 text-sm opacity-90">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span>Online</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsMinimized(!isMinimized)}
-                className="text-white hover:bg-white/20"
-              >
-                {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsOpen(false)}
-                className="text-white hover:bg-white/20"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <MessageCircle className="h-5 w-5 text-blue-600" />
+            <span>AI Investment Advisor</span>
+            <Badge variant="secondary" className="ml-auto">
+              Powered by AI
+            </Badge>
+          </CardTitle>
+          <p className="text-gray-600 dark:text-gray-400">Get personalized investment advice and market insights</p>
         </CardHeader>
+      </Card>
 
-        {!isMinimized && (
-          <CardContent className="p-0 flex flex-col h-[536px]">
-            {/* Messages */}
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Chat Interface */}
+        <div className="lg:col-span-3">
+          <Card className="h-[600px] flex flex-col">
+            <CardContent className="flex-1 p-0">
+              <ScrollArea className="h-[500px] p-4">
+                <div className="space-y-4">
+                  {messages.map((message) => (
                     <div
-                      className={`max-w-[80%] rounded-lg p-3 ${
-                        message.role === "user" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-800"
-                      }`}
+                      key={message.id}
+                      className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                     >
-                      <div className="flex items-start space-x-2">
-                        {message.role === "assistant" && <Bot className="w-4 h-4 mt-0.5 text-blue-500" />}
-                        {message.role === "user" && <User className="w-4 h-4 mt-0.5" />}
-                        <div className="flex-1">
-                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                          <p className={`text-xs mt-1 opacity-70`}>{formatTime(message.timestamp)}</p>
+                      <div
+                        className={`max-w-[80%] rounded-lg p-3 ${
+                          message.role === "user"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
+                        }`}
+                      >
+                        {message.role === "assistant" && (
+                          <div className="flex items-center space-x-2 mb-2">
+                            <DuckCharacter size="xs" />
+                            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">AI Advisor</span>
+                          </div>
+                        )}
+                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-xs opacity-70 mt-1">{message.timestamp.toLocaleTimeString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {isLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-3">
+                        <div className="flex items-center space-x-2">
+                          <DuckCharacter size="xs" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-sm text-gray-600 dark:text-gray-400">Thinking...</span>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-gray-100 rounded-lg p-3 max-w-[80%]">
-                      <div className="flex items-center space-x-2">
-                        <Bot className="w-4 h-4 text-blue-500" />
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span className="text-sm text-gray-600">Thinking...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                <div ref={messagesEndRef} />
-              </div>
-            </ScrollArea>
-
-            {/* Suggested Questions */}
-            {messages.length === 1 && (
-              <div className="p-4 border-t bg-gray-50">
-                <div className="mb-3">
-                  <div className="flex items-center space-x-1 text-sm text-gray-600 mb-2">
-                    <Sparkles className="w-4 h-4" />
-                    <span>Suggested questions:</span>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {SUGGESTED_QUESTIONS.slice(0, 3).map((question, index) => (
-                      <Button
-                        key={index}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleSuggestedQuestion(question)}
-                        className="text-xs h-8"
-                      >
-                        {question}
-                      </Button>
-                    ))}
-                  </div>
+                  )}
                 </div>
-              </div>
-            )}
+              </ScrollArea>
+            </CardContent>
 
-            {/* Input */}
             <div className="p-4 border-t">
               <div className="flex space-x-2">
                 <Input
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder="Ask me about investing..."
-                  onKeyPress={(e) => e.key === "Enter" && sendMessage(inputMessage)}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask me anything about investing..."
                   disabled={isLoading}
                   className="flex-1"
                 />
-                <Button
-                  onClick={() => sendMessage(inputMessage)}
-                  disabled={isLoading || !inputMessage.trim()}
-                  size="sm"
-                >
-                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <Button onClick={handleSendMessage} disabled={!input.trim() || isLoading} size="sm">
+                  <Send className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-                <span>+10 XP per question</span>
-                <Badge variant="outline" className="text-xs">
-                  Powered by Gemini AI
-                </Badge>
-              </div>
             </div>
-          </CardContent>
-        )}
-      </Card>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-4">
+          {/* Quick Questions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Suggested Questions</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {suggestedQuestions.map((question, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-left justify-start h-auto p-2 text-xs bg-transparent"
+                  onClick={() => setInput(question)}
+                  disabled={isLoading}
+                >
+                  {question}
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* User Context */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Your Profile</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span>Level:</span>
+                <span className="font-semibold">{user?.level || 1}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Balance:</span>
+                <span className="font-semibold">${(user?.balance || 0).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Holdings:</span>
+                <span className="font-semibold">{user?.portfolio?.length || 0} stocks</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Total Trades:</span>
+                <span className="font-semibold">{user?.stats?.totalTrades || 0}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Tips */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Pro Tips</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                <li>• Ask about specific stocks you're interested in</li>
+                <li>• Request portfolio analysis and suggestions</li>
+                <li>• Learn about different investment strategies</li>
+                <li>• Get explanations of financial terms</li>
+                <li>• Ask for market trend insights</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

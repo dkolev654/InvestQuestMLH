@@ -1,48 +1,97 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle, Circle, Target, BookOpen, TrendingUp, Award } from "lucide-react"
 import { useGameStore } from "@/lib/game-store"
+import { Trophy, Target, TrendingUp, BookOpen, Star, Zap } from "lucide-react"
 
-export default function QuestsPanel() {
-  const { quests, user, completeQuest } = useGameStore()
+const QUESTS = [
+  {
+    id: "first-trade",
+    title: "First Trade",
+    description: "Make your first stock purchase",
+    icon: TrendingUp,
+    xpReward: 50,
+    target: 1,
+    type: "trades",
+  },
+  {
+    id: "portfolio-builder",
+    title: "Portfolio Builder",
+    description: "Own 5 different stocks",
+    icon: Target,
+    xpReward: 100,
+    target: 5,
+    type: "unique_stocks",
+  },
+  {
+    id: "day-trader",
+    title: "Day Trader",
+    description: "Complete 10 trades",
+    icon: Zap,
+    xpReward: 200,
+    target: 10,
+    type: "trades",
+  },
+  {
+    id: "profit-maker",
+    title: "Profit Maker",
+    description: "Achieve $500 in total gains",
+    icon: Star,
+    xpReward: 300,
+    target: 500,
+    type: "profit",
+  },
+  {
+    id: "scholar",
+    title: "Scholar",
+    description: "Complete 3 education modules",
+    icon: BookOpen,
+    xpReward: 150,
+    target: 3,
+    type: "education",
+  },
+  {
+    id: "high-roller",
+    title: "High Roller",
+    description: "Make a single trade worth $1000+",
+    icon: Trophy,
+    xpReward: 250,
+    target: 1000,
+    type: "single_trade",
+  },
+]
 
-  if (!user) return null
+export function QuestsPanel() {
+  const { user, completeQuest } = useGameStore()
 
-  const getQuestProgress = (quest: any) => {
-    switch (quest.id) {
-      case "first-trade":
-        return user.tradesCount > 0 ? 100 : 0
-      case "diversify":
-        const sectors = new Set(
-          user.holdings.map((h) => {
-            // This would need to be properly implemented with stock data
-            return "sector"
-          }),
-        )
-        return Math.min((sectors.size / 3) * 100, 100)
-      case "profit-maker":
-        return Math.min((user.totalPnL / 500) * 100, 100)
-      case "active-trader":
-        return Math.min((user.tradesCount / 10) * 100, 100)
+  const getQuestProgress = (quest: (typeof QUESTS)[0]) => {
+    if (!user) return 0
+
+    switch (quest.type) {
+      case "trades":
+        return user.stats?.totalTrades || 0
+      case "unique_stocks":
+        return user.portfolio?.length || 0
+      case "profit":
+        return Math.max(0, user.stats?.totalProfit || 0)
+      case "education":
+        return user.stats?.completedModules || 0
+      case "single_trade":
+        return user.stats?.largestTrade || 0
       default:
         return 0
     }
   }
 
-  const getQuestIcon = (type: string) => {
-    switch (type) {
-      case "trade":
-        return <TrendingUp className="w-5 h-5" />
-      case "learn":
-        return <BookOpen className="w-5 h-5" />
-      case "portfolio":
-        return <Target className="w-5 h-5" />
-      default:
-        return <Circle className="w-5 h-5" />
+  const isQuestCompleted = (questId: string) => {
+    return user?.completedQuests?.includes(questId) || false
+  }
+
+  const handleQuestComplete = (quest: (typeof QUESTS)[0]) => {
+    if (!isQuestCompleted(quest.id) && getQuestProgress(quest) >= quest.target) {
+      completeQuest(quest.id, quest.xpReward)
     }
   }
 
@@ -50,81 +99,76 @@ export default function QuestsPanel() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
-          <Target className="w-5 h-5" />
-          <span>Learning Quests</span>
+          <Trophy className="h-5 w-5 text-yellow-600" />
+          <span>Active Quests</span>
         </CardTitle>
-        <CardDescription>Complete quests to earn XP and unlock new features</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {quests.map((quest) => {
+        {QUESTS.map((quest) => {
           const progress = getQuestProgress(quest)
-          const isCompleted = user.completedQuests.includes(quest.id)
+          const isCompleted = isQuestCompleted(quest.id)
+          const progressPercent = Math.min((progress / quest.target) * 100, 100)
+          const Icon = quest.icon
 
           return (
             <div
               key={quest.id}
-              className={`p-4 rounded-lg border ${
-                isCompleted ? "bg-green-50 border-green-200" : "bg-white border-gray-200"
+              className={`p-4 border rounded-lg transition-all ${
+                isCompleted
+                  ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                  : "hover:bg-gray-50 dark:hover:bg-gray-800"
               }`}
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center space-x-3">
-                  {isCompleted ? <CheckCircle className="w-5 h-5 text-green-600" /> : getQuestIcon(quest.type)}
-                  <div>
-                    <h4 className="font-semibold">{quest.title}</h4>
-                    <p className="text-sm text-gray-600">{quest.description}</p>
-                  </div>
+              <div className="flex items-start space-x-3">
+                <div
+                  className={`p-2 rounded-lg ${
+                    isCompleted
+                      ? "bg-green-100 dark:bg-green-800 text-green-600 dark:text-green-400"
+                      : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
                 </div>
-                <Badge variant={isCompleted ? "default" : "secondary"}>{quest.xpReward} XP</Badge>
+
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900 dark:text-white">{quest.title}</h3>
+                    {isCompleted ? (
+                      <Badge variant="default" className="bg-green-600">
+                        Completed
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">{quest.xpReward} XP</Badge>
+                    )}
+                  </div>
+
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{quest.description}</p>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>Progress</span>
+                      <span>
+                        {quest.type === "profit" || quest.type === "single_trade"
+                          ? `$${progress.toFixed(0)} / $${quest.target}`
+                          : `${progress} / ${quest.target}`}
+                      </span>
+                    </div>
+                    <Progress value={progressPercent} className={`h-2 ${isCompleted ? "bg-green-200" : ""}`} />
+                  </div>
+
+                  {!isCompleted && progress >= quest.target && (
+                    <button
+                      onClick={() => handleQuestComplete(quest)}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                    >
+                      Claim Reward →
+                    </button>
+                  )}
+                </div>
               </div>
-
-              {!isCompleted && (
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Progress</span>
-                    <span>{Math.round(progress)}%</span>
-                  </div>
-                  <Progress value={progress} className="h-2" />
-                </div>
-              )}
-
-              {isCompleted && (
-                <div className="flex items-center space-x-2 text-green-600">
-                  <Award className="w-4 h-4" />
-                  <span className="text-sm font-medium">Quest Completed!</span>
-                </div>
-              )}
             </div>
           )
         })}
-
-        {/* Learning Tips */}
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-          <h4 className="font-semibold mb-2 flex items-center space-x-2">
-            <BookOpen className="w-4 h-4" />
-            <span>💡 Learning Tip</span>
-          </h4>
-          <p className="text-sm text-gray-700">
-            <strong>What is diversification?</strong> It means spreading your investments across different companies and
-            sectors. This helps reduce risk because if one stock goes down, others might go up!
-          </p>
-        </div>
-
-        <div className="p-4 bg-yellow-50 rounded-lg">
-          <h4 className="font-semibold mb-2">🎯 Quick Quiz</h4>
-          <p className="text-sm text-gray-700 mb-3">What does it mean when a stock price goes up?</p>
-          <div className="space-y-2">
-            <Button variant="outline" size="sm" className="w-full justify-start text-left bg-transparent">
-              A) The company is losing money
-            </Button>
-            <Button variant="outline" size="sm" className="w-full justify-start text-left bg-transparent">
-              B) More people want to buy than sell
-            </Button>
-            <Button variant="outline" size="sm" className="w-full justify-start text-left bg-transparent">
-              C) The company is closing down
-            </Button>
-          </div>
-        </div>
       </CardContent>
     </Card>
   )
