@@ -1,30 +1,7 @@
-# InvestQuest Project
+InvestQuest is a gamified stock market simulator designed specifically for students aged 15 to 18. It combines hands-on investing practice with built-in education and gamification, allowing users to learn and grow without financial risk. Users start with $10,000 in simulated cash and can buy or sell stocks from a curated selection using either real-time or historical stock data. As they make trades and progress through the app, they unlock educational quests that teach core concepts like diversification, risk, and portfolio management.
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+To make learning even more interactive, we integrated Gemini’s AI to act as a personal finance mentor. Users can ask questions like “What is a dividend?” or “Is Apple a tech stock?” and receive clear, beginner-friendly responses. A built-in XP system rewards users for completing actions and learning tasks, helping them level up and track their financial growth. Whether you’re a complete beginner or a curious teen investor, InvestQuest makes financial education hands-on, practical, and fun.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/mathuvenkat11-6680s-projects/v0-invest-quest-project)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/Cg7VSGoxx2o)
+We began by designing the UI/UX in Figma, focusing on a clean, mobile-friendly layout that’s intuitive for Gen Z users. We then built the app’s frontend and backend using React and Firebase, writing and editing code in VS Code with the help of GitHub Copilot to speed up our workflow. The project is hosted on Vercel, which allowed for rapid deployment and testing throughout the build process.
 
-## Overview
-
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
-
-## Deployment
-
-Your project is live at:
-
-**[https://vercel.com/mathuvenkat11-6680s-projects/v0-invest-quest-project](https://vercel.com/mathuvenkat11-6680s-projects/v0-invest-quest-project)**
-
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.dev/chat/projects/Cg7VSGoxx2o](https://v0.dev/chat/projects/Cg7VSGoxx2o)**
-
-## How It Works
-
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+To bring the learning component to life, we connected the Gemini API for AI-powered explanations and added interactive quiz content exported through Google Docs and Sheets, enabling fast iteration and content management. We implemented real-time updates to track user XP, stock transactions, and badge progress.
